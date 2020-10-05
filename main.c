@@ -32,13 +32,14 @@ NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
 typedef enum {
   OFF,
   DRIVING,
+  TURNING,
 } robot_state_t;
 
 static float measure_distance(uint16_t current_encoder, uint16_t previous_encoder)
 {
   float ret = 0;
-  const float CONVERSION = 0.00008529;
-  if (current_encoder > previous_encoder) 
+  const float CONVERSION = 0.0006108;
+  if (current_encoder >= previous_encoder) //take care of the case when it goes backward 
   {
     ret = (float)(current_encoder - previous_encoder) * CONVERSION;
   }
@@ -101,6 +102,7 @@ int main(void) {
   KobukiSensors_t sensors = {0};
 
   float dist = 0;
+  float angle = 0;
   uint16_t lastEncoder = 0;
   // loop forever, running state machine
   while (1) {
@@ -118,6 +120,7 @@ int main(void) {
         // transition logic
         if (is_button_pressed(&sensors)) {
           state = DRIVING;
+          lastEncoder = sensors.leftWheelEncoder;
         } else {
           // perform state-specific actions here
           display_write("OFF", DISPLAY_LINE_0);
@@ -129,9 +132,20 @@ int main(void) {
 
       case DRIVING: {
         // transition logic
-        if (is_button_pressed(&sensors) || dist >= 0.5) {
+        if (is_button_pressed(&sensors)) {
           state = OFF;
-        } else {
+          dist = 0;  
+          kobukiDriveDirect(0, 0);
+        }
+        else if (dist >= 0.5)
+        {
+          state = TURNING;
+          lsm9ds1_start_gyro_integration();
+          dist = 0;
+          angle = 0;
+          kobukiDriveDirect(100, -100);
+        } 
+        else {
           // perform state-specific actions here
           display_write("DRIVING", DISPLAY_LINE_0);
 
@@ -145,6 +159,37 @@ int main(void) {
           display_write(buf, DISPLAY_LINE_1);
         }
         break; // each case needs to end with break!
+      }
+
+      case TURNING:
+      {
+        if (is_button_pressed(&sensors)) {
+          state = OFF;
+          lsm9ds1_stop_gyro_integration();
+          angle = 0;
+          dist = 0;  
+          kobukiDriveDirect(0, 0);
+        }
+        else if (angle <= -90)
+        {
+          state = DRIVING;
+          lsm9ds1_stop_gyro_integration();
+          angle = 0;
+          dist = 0;  
+          kobukiDriveDirect(100, 100);
+        }
+        else 
+        {
+          display_write("TURNING", DISPLAY_LINE_0);
+          kobukiDriveDirect(100, -100);
+          angle = lsm9ds1_read_gyro_integration().z_axis;
+          state = TURNING;
+
+          char buf[16];
+          snprintf(buf, 16, "%f", angle);
+          display_write(buf, DISPLAY_LINE_1);
+        }
+
       }
 
       // add other cases here

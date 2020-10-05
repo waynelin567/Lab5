@@ -24,7 +24,7 @@
 #include "kobukiSensorPoll.h"
 #include "kobukiSensorTypes.h"
 #include "kobukiUtilities.h"
-#include "mpu9250.h"
+#include "lsm9ds1.h"
 
 // I2C manager
 NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
@@ -34,6 +34,20 @@ typedef enum {
   DRIVING,
 } robot_state_t;
 
+static float measure_distance(uint16_t current_encoder, uint16_t previous_encoder)
+{
+  float ret = 0;
+  const float CONVERSION = 0.00008529;
+  if (current_encoder > previous_encoder) 
+  {
+    ret = (float)(current_encoder - previous_encoder) * CONVERSION;
+  }
+  else
+  {
+    ret = (float)(65535+current_encoder-previous_encoder)*CONVERSION;
+  }
+  return ret;
+}
 
 int main(void) {
   ret_code_t error_code = NRF_SUCCESS;
@@ -75,7 +89,7 @@ int main(void) {
   i2c_config.frequency = NRF_TWIM_FREQ_100K;
   error_code = nrf_twi_mngr_init(&twi_mngr_instance, &i2c_config);
   APP_ERROR_CHECK(error_code);
-  mpu9250_init(&twi_mngr_instance);
+  lsm9ds1_init(&twi_mngr_instance);
   printf("IMU initialized!\n");
 
   // initialize Kobuki
@@ -86,6 +100,8 @@ int main(void) {
   robot_state_t state = OFF;
   KobukiSensors_t sensors = {0};
 
+  float dist = 0;
+  uint16_t lastEncoder = 0;
   // loop forever, running state machine
   while (1) {
     // read sensors from robot
@@ -105,7 +121,7 @@ int main(void) {
         } else {
           // perform state-specific actions here
           display_write("OFF", DISPLAY_LINE_0);
-
+          kobukiDriveDirect(0, 0);
           state = OFF;
         }
         break; // each case needs to end with break!
@@ -113,13 +129,20 @@ int main(void) {
 
       case DRIVING: {
         // transition logic
-        if (is_button_pressed(&sensors)) {
+        if (is_button_pressed(&sensors) || dist >= 0.5) {
           state = OFF;
         } else {
           // perform state-specific actions here
           display_write("DRIVING", DISPLAY_LINE_0);
 
+          dist += measure_distance(sensors.leftWheelEncoder, lastEncoder);
+          lastEncoder = sensors.leftWheelEncoder;
+          kobukiDriveDirect(100, 100);
           state = DRIVING;
+
+          char buf[16];
+          snprintf(buf, 16, "%f", dist);
+          display_write(buf, DISPLAY_LINE_1);
         }
         break; // each case needs to end with break!
       }

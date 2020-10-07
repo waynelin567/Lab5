@@ -207,10 +207,12 @@ int main(void) {
         {
           state = BACKING;
           dist = 0;
+          angle = 0;
           kobukiDriveDirect(-70, -70);
           nrf_delay_ms(100);
           kobukiSensorPoll(&sensors);
           lastEncoder = sensors.leftWheelEncoder;
+          lsm9ds1_stop_gyro_integration();
         }
         else if (angle <= -90)
         {
@@ -219,6 +221,9 @@ int main(void) {
           angle = 0;
           dist = 0;  
           kobukiDriveDirect(100, 100);
+          nrf_delay_ms(100);
+          kobukiSensorPoll(&sensors);
+          lastEncoder = sensors.leftWheelEncoder;
         }
         else 
         {
@@ -283,6 +288,9 @@ int main(void) {
           angle = 0;
           dist = 0;  
           kobukiDriveDirect(100, 100);
+          nrf_delay_ms(100);
+          kobukiSensorPoll(&sensors);
+          lastEncoder = sensors.leftWheelEncoder;
         }
         else 
         {
@@ -290,7 +298,7 @@ int main(void) {
           if (!isRight) kobukiDriveDirect(60, -60);
           else kobukiDriveDirect(-60, 60);
           angle = lsm9ds1_read_gyro_integration().z_axis;
-          state = TURNING;
+          state = TURNING_45;
 
           char buf[16];
           snprintf(buf, 16, "%f", angle);

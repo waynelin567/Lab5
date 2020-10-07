@@ -50,6 +50,12 @@ static float measure_distance(uint16_t current_encoder, uint16_t previous_encode
   return ret;
 }
 
+bool bumpedIntoSth(KobukiSensors_t* sensors)
+{
+  return sensors->bumps_wheelDrops.bumpLeft ||
+         sensors->bumps_wheelDrops.bumpCenter ||
+         sensors->bumps_wheelDrops.bumpRight;
+}
 int main(void) {
   ret_code_t error_code = NRF_SUCCESS;
 
@@ -137,6 +143,12 @@ int main(void) {
           dist = 0;  
           kobukiDriveDirect(0, 0);
         }
+        else if (bumpedIntoSth(&sensors))
+        {
+          state = OFF;
+          dist = 0;
+          kobukiDriveDirect(0, 0);
+        }
         else if (dist >= 0.5)
         {
           state = TURNING;
@@ -168,6 +180,12 @@ int main(void) {
           lsm9ds1_stop_gyro_integration();
           angle = 0;
           dist = 0;  
+          kobukiDriveDirect(0, 0);
+        }
+        else if (bumpedIntoSth(&sensors))
+        {
+          state = OFF;
+          dist = 0;
           kobukiDriveDirect(0, 0);
         }
         else if (angle <= -90)

@@ -165,6 +165,8 @@ int main(void) {
           state = BACKING;
           dist = 0;
           kobukiDriveDirect(-70, -70);
+          nrf_delay_ms(100);
+          kobukiSensorPoll(&sensors);
           lastEncoder = sensors.leftWheelEncoder;
         }
         else if (dist >= 0.5)
@@ -204,8 +206,10 @@ int main(void) {
         {
           state = BACKING;
           dist = 0;
-          lastEncoder = sensors.leftWheelEncoder;
           kobukiDriveDirect(-70, -70);
+          nrf_delay_ms(100);
+          kobukiSensorPoll(&sensors);
+          lastEncoder = sensors.leftWheelEncoder;
         }
         else if (angle <= -90)
         {
@@ -256,7 +260,7 @@ int main(void) {
           lastEncoder = sensors.leftWheelEncoder;
           kobukiDriveDirect(-70, -70);
           state = BACKING;
-
+          
           char buf[16];
           snprintf(buf, 16, "%f", dist);
           display_write(buf, DISPLAY_LINE_1);

@@ -33,13 +33,14 @@ typedef enum {
   OFF,
   DRIVING,
   TURNING,
+  BACKING,
 } robot_state_t;
 
 static float measure_distance(uint16_t current_encoder, uint16_t previous_encoder)
 {
   float ret = 0;
   const float CONVERSION = 0.0006108;
-  if (current_encoder >= previous_encoder) //take care of the case when it goes backward 
+  if (current_encoder >= previous_encoder) 
   {
     ret = (float)(current_encoder - previous_encoder) * CONVERSION;
   }
@@ -49,9 +50,23 @@ static float measure_distance(uint16_t current_encoder, uint16_t previous_encode
   }
   return ret;
 }
-
-bool bumpedIntoSth(KobukiSensors_t* sensors)
+static float measure_reverse_distance(uint16_t current_encoder, uint16_t previous_encoder)
 {
+  float ret = 0;
+  const float CONVERSION = 0.0006108;
+  if (current_encoder <= previous_encoder) 
+  {
+    ret = (float)(current_encoder - previous_encoder) * CONVERSION;
+  }
+  else
+  {
+    ret = -(float)((65535-current_encoder)+previous_encoder)*CONVERSION;
+  }
+  return ret;
+}
+bool bumpedIntoSth(KobukiSensors_t* sensors, bool* isRight)
+{
+  *isRight = sensors->bumps_wheelDrops.bumpRight;
   return sensors->bumps_wheelDrops.bumpLeft ||
          sensors->bumps_wheelDrops.bumpCenter ||
          sensors->bumps_wheelDrops.bumpRight;
@@ -109,6 +124,7 @@ int main(void) {
 
   float dist = 0;
   float angle = 0;
+  bool isRight = false;
   uint16_t lastEncoder = 0;
   // loop forever, running state machine
   while (1) {
@@ -137,17 +153,19 @@ int main(void) {
       }
 
       case DRIVING: {
+
         // transition logic
         if (is_button_pressed(&sensors)) {
           state = OFF;
           dist = 0;  
           kobukiDriveDirect(0, 0);
         }
-        else if (bumpedIntoSth(&sensors))
+        else if (bumpedIntoSth(&sensors, &isRight))
         {
-          state = OFF;
+          state = BACKING;
           dist = 0;
-          kobukiDriveDirect(0, 0);
+          kobukiDriveDirect(-70, -70);
+          lastEncoder = sensors.leftWheelEncoder;
         }
         else if (dist >= 0.5)
         {
@@ -182,11 +200,12 @@ int main(void) {
           dist = 0;  
           kobukiDriveDirect(0, 0);
         }
-        else if (bumpedIntoSth(&sensors))
+        else if (bumpedIntoSth(&sensors, &isRight))
         {
-          state = OFF;
+          state = BACKING;
           dist = 0;
-          kobukiDriveDirect(0, 0);
+          lastEncoder = sensors.leftWheelEncoder;
+          kobukiDriveDirect(-70, -70);
         }
         else if (angle <= -90)
         {
@@ -207,9 +226,43 @@ int main(void) {
           snprintf(buf, 16, "%f", angle);
           display_write(buf, DISPLAY_LINE_1);
         }
-
+        break;
       }
 
+      case BACKING:
+      {
+        // transition logic
+        if (is_button_pressed(&sensors)) {
+          state = OFF;
+          dist = 0;  
+          kobukiDriveDirect(0, 0);
+        }
+        else if (dist <= -0.1)
+        {
+          /*state = TURNING;
+          lsm9ds1_start_gyro_integration();
+          dist = 0;
+          angle = 0;
+          kobukiDriveDirect(100, -100);*/
+          state = OFF;
+          dist = 0;
+          kobukiDriveDirect(0, 0);
+        } 
+        else {
+          // perform state-specific actions here
+          display_write("BACKING", DISPLAY_LINE_0);
+
+          dist += measure_reverse_distance(sensors.leftWheelEncoder, lastEncoder);
+          lastEncoder = sensors.leftWheelEncoder;
+          kobukiDriveDirect(-70, -70);
+          state = BACKING;
+
+          char buf[16];
+          snprintf(buf, 16, "%f", dist);
+          display_write(buf, DISPLAY_LINE_1);
+        }
+        break; // each case needs to end with break!
+      }
       // add other cases here
 
     }

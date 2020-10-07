@@ -34,6 +34,7 @@ typedef enum {
   DRIVING,
   TURNING,
   BACKING,
+  TURNING_45,
 } robot_state_t;
 
 static float measure_distance(uint16_t current_encoder, uint16_t previous_encoder)
@@ -243,13 +244,10 @@ int main(void) {
         }
         else if (dist <= -0.1)
         {
-          /*state = TURNING;
+          state = TURNING_45;
           lsm9ds1_start_gyro_integration();
           dist = 0;
           angle = 0;
-          kobukiDriveDirect(100, -100);*/
-          state = OFF;
-          dist = 0;
           kobukiDriveDirect(0, 0);
         } 
         else {
@@ -269,6 +267,37 @@ int main(void) {
       }
       // add other cases here
 
+      case TURNING_45:
+      {
+        if (is_button_pressed(&sensors)) {
+          state = OFF;
+          lsm9ds1_stop_gyro_integration();
+          angle = 0;
+          dist = 0;  
+          kobukiDriveDirect(0, 0);
+        }
+        else if (abs(angle) >= 45)
+        {
+          state = DRIVING;
+          lsm9ds1_stop_gyro_integration();
+          angle = 0;
+          dist = 0;  
+          kobukiDriveDirect(100, 100);
+        }
+        else 
+        {
+          display_write("TURNING_45", DISPLAY_LINE_0);
+          if (!isRight) kobukiDriveDirect(60, -60);
+          else kobukiDriveDirect(-60, 60);
+          angle = lsm9ds1_read_gyro_integration().z_axis;
+          state = TURNING;
+
+          char buf[16];
+          snprintf(buf, 16, "%f", angle);
+          display_write(buf, DISPLAY_LINE_1);
+        }
+        break;
+      }
     }
   }
 }
